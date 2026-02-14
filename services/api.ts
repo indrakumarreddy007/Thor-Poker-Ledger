@@ -96,15 +96,27 @@ export const api = {
         return data.map(mapSession);
     },
 
-    createSession: async (name: string, blindValue: string, createdBy: string): Promise<Session | null> => {
-        const res = await fetch(`${API_BASE}/sessions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, blindValue, createdBy })
-        });
-        if (!res.ok) return null;
-        const data = await res.json();
-        return mapSession(data);
+    createSession: async (name: string, blindValue: string, createdBy: string): Promise<{ success: boolean; session?: Session; error?: string }> => {
+        try {
+            const res = await fetch(`${API_BASE}/sessions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, blindValue, createdBy })
+            });
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await res.json();
+                if (!res.ok) return { success: false, error: data.error || `Error ${res.status}` };
+                return { success: true, session: mapSession(data) };
+            } else {
+                const text = await res.text();
+                console.error("API Error (Non-JSON response):", res.status, text);
+                return { success: false, error: `Server Error (${res.status}): ${text.slice(0, 100)}...` };
+            }
+        } catch (e: any) {
+            console.error("Network Exception:", e);
+            return { success: false, error: `Network error: ${e.message}` };
+        }
     },
 
     getSession: async (idOrCode: string): Promise<{ session: Session, players: SessionPlayer[], buyIns: BuyIn[] } | null> => {

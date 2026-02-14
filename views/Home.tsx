@@ -46,12 +46,20 @@ export default function Home({ user, navigate }: HomeProps) {
     fetchData();
   }, [user.id]);
 
+  // Add state for creation error
+  const [createError, setCreateError] = useState('');
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sessionName) return;
-    const session = await api.createSession(sessionName, blindValue, user.id);
-    if (session) {
-      navigate(`admin/${session.sessionCode}`);
+    setCreateError('');
+
+    const result = await api.createSession(sessionName, blindValue, user.id);
+
+    if (result.success && result.session) {
+      navigate(`admin/${result.session.sessionCode}`);
+    } else {
+      setCreateError(result.error || 'Failed to create session.');
     }
   };
 
@@ -195,6 +203,7 @@ export default function Home({ user, navigate }: HomeProps) {
                   onChange={(e) => setBlindValue(e.target.value)}
                 />
               </div>
+              {createError && <p className="text-rose-400 text-[10px] font-black uppercase tracking-widest animate-bounce mb-4">{createError}</p>}
               <button
                 type="submit"
                 disabled={!sessionName}
