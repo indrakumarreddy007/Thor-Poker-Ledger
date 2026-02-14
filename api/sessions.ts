@@ -39,8 +39,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // Add creator as admin
                 await client.query(
-                    `INSERT INTO session_players (session_id, user_id, role, name) 
-           VALUES ($1, $2, 'admin', (SELECT name FROM users WHERE id = $2))`,
+                    `INSERT INTO session_players (session_id, user_id, role) 
+           VALUES ($1, $2, 'admin')`,
                     [session.id, createdBy]
                 );
 

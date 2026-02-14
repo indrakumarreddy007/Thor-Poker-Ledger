@@ -39,8 +39,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Join
             const insertRes = await client.query(
-                `INSERT INTO session_players (session_id, user_id, role, name) 
-         VALUES ($1, $2, $3, (SELECT name FROM users WHERE id = $2)) 
+                `INSERT INTO session_players (session_id, user_id, role) 
+         VALUES ($1, $2, $3) 
          RETURNING *`,
                 [session.id, userId, role]
             );
