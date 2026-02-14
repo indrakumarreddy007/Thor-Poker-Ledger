@@ -1,12 +1,13 @@
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Poker Ledger | Premium</title>
+  <title>Poker Ledger</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     body {
@@ -15,27 +16,40 @@
       color: #f8fafc;
       min-height: 100vh;
     }
+
     .glass {
       background: rgba(15, 23, 42, 0.6);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.05);
     }
+
     .poker-felt {
       background-image: url("https://www.transparenttextures.com/patterns/felt.png");
     }
+
     @keyframes slideIn {
-      from { transform: translateY(10px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
+      from {
+        transform: translateY(10px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
     }
+
     .animate-slide {
       animation: slideIn 0.3s ease-out forwards;
     }
   </style>
 
 </head>
+
 <body class="poker-felt">
   <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
+
 </html>

@@ -55,7 +55,8 @@ export const api = {
             } else {
                 const text = await res.text();
                 console.error("API Error (Non-JSON response):", res.status, text);
-                return { success: false, error: `Server Error (${res.status}). Check console.` };
+                // Return the raw text (truncated) to help debugging in UI
+                return { success: false, error: `Server Error (${res.status}): ${text.slice(0, 100)}...` };
             }
         } catch (e: any) {
             console.error("Network Exception:", e);
@@ -78,7 +79,8 @@ export const api = {
             } else {
                 const text = await res.text();
                 console.error("API Error (Non-JSON response):", res.status, text);
-                return { success: false, error: `Server Error (${res.status}). Check console.` };
+                // Return the raw text (truncated) to help debugging in UI
+                return { success: false, error: `Server Error (${res.status}): ${text.slice(0, 100)}...` };
             }
         } catch (e: any) {
             console.error("Network Exception:", e);
