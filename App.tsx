@@ -6,6 +6,7 @@ import Home from './views/Home';
 import SessionAdmin from './views/SessionAdmin';
 import SessionPlayer from './views/SessionPlayer';
 import Settlement from './views/Settlement';
+import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -89,7 +90,9 @@ export default function App() {
         </div>
       </nav>
       <main className="container mx-auto max-w-2xl px-4 py-6">
-        {renderRoute()}
+        <ErrorBoundary>
+          {renderRoute()}
+        </ErrorBoundary>
       </main>
     </div>
   );
