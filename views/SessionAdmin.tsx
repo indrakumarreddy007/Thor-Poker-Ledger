@@ -47,7 +47,8 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
         if (!session) setFetchError('Failed to load session data. Please check connection.');
       }
     } catch (e: any) {
-      if (!session) setFetchError('Network error loading session.');
+      console.error("Session load error:", e);
+      if (!session) setFetchError(`Error: ${e.message || JSON.stringify(e)}`);
     }
   };
 
