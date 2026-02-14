@@ -54,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         } catch (error: any) {
             console.error('Error creating session:', error);
-            return res.status(500).json({ error: 'Failed to create session' });
+            return res.status(500).json({ error: `Failed to create session: ${error.message}` });
         }
     } else {
         return res.status(405).json({ error: 'Method not allowed' });
