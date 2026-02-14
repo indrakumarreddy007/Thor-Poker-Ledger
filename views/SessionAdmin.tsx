@@ -58,7 +58,52 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
     return () => clearInterval(interval);
   }, [sessionCode]);
 
-  // ... (handlers)
+  const handleApprove = async (id: string) => {
+    await api.updateBuyInStatus(id, 'approved');
+    refreshData();
+  };
+
+  const handleReject = async (id: string) => {
+    await api.updateBuyInStatus(id, 'rejected');
+    refreshData();
+  };
+
+  const handleAdminBuyIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session || !ownAmount) return;
+    await api.requestBuyIn(session.id, user.id, parseFloat(ownAmount), 'approved');
+    setOwnAmount('');
+    setIsAddingOwn(false);
+    refreshData();
+  };
+
+  const getPlayerStats = (userId: string) => {
+    const playerBuyIns = buyIns.filter(b => b.userId === userId && b.status === 'approved');
+    const total = playerBuyIns.reduce((sum, b) => sum + b.amount, 0);
+    const history = buyIns.filter(b => b.userId === userId);
+    return { total, history };
+  };
+
+  const finalizeSession = async () => {
+    if (!session) return;
+    let totalWinnings = 0;
+    const approvedBuyIns = buyIns.filter(b => b.status === 'approved');
+    const totalBuyInPool = approvedBuyIns.reduce((sum, b) => sum + b.amount, 0);
+
+    for (const player of players) {
+      const val = parseFloat(finalChipCounts[player.userId] || '0');
+      totalWinnings += val;
+      await api.settlePlayer(session.id, player.userId, val);
+    }
+
+    if (Math.abs(totalWinnings - totalBuyInPool) > 0.1) {
+      setError(`Audit Failed: Chips Out (₹${totalWinnings}) ≠ Pool (₹${totalBuyInPool}).`);
+      return;
+    }
+
+    await api.updateSessionStatus(session.id, 'closed');
+    navigate(`settlement/${session.id}`);
+  };
 
   if (!session) {
     if (fetchError) {
