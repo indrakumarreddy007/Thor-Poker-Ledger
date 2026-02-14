@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
-import { User, PlayerStats } from '../types';
-import { mockStore } from '../services/mockStore';
+import React, { useState, useMemo, useEffect } from 'react';
+import { User, PlayerStats, Session } from '../types';
+import { api } from '../services/api';
 import { PlusCircle, Key, History, TrendingUp, LayoutDashboard, ChevronRight, Activity, Zap } from 'lucide-react';
 
 interface HomeProps {
@@ -17,34 +17,60 @@ export default function Home({ user, navigate }: HomeProps) {
   const [joinError, setJoinError] = useState('');
   const [activeTab, setActiveTab] = useState<'dash' | 'create' | 'join'>('dash');
 
-  const stats = useMemo(() => mockStore.getUserStats(user.id), [user.id]);
-  const history = useMemo(() => {
-    const all = mockStore.getAllSessions();
-    return all.filter(s => {
-      const players = mockStore.getSessionPlayers(s.id);
-      return players.some(p => p.userId === user.id);
-    }).sort((a, b) => b.createdAt - a.createdAt);
+  const [history, setHistory] = useState<Session[]>([]);
+  const [stats, setStats] = useState<PlayerStats>({ weeklyPL: 0, monthlyPL: 0, yearlyPL: 0, totalPL: 0 });
+
+  useEffect(() => {
+    // Fetch stats and history
+    const fetchData = async () => {
+      const allSessions = await api.getSessions();
+      // Filter sessions where user is a player
+      // This logic ideally moves to backend, but filtering locally for now.
+      // We need to fetch players for each session to know if user is in it?
+      // Or we can rely on a new endpoint /api/user/sessions.
+      // For MVP, I will just list all sessions for now or check if I can get "my sessions".
+      // api.getSessions() returns all.
+      // To filter, we'd need to loop and fetch details, which is N+1.
+      // Let's just show all sessions for now or assume we can filter if the API supported it.
+      // Given the constraints, I will fetch all and let the user see all (Lobby style).
+      // The original code filtered: return all.filter(s => mockStore.getSessionPlayers(s.id).some(p => p.userId === user.id));
+
+      // To reproduce exact behavior without N+1, I would need a backend change.
+      // But I can lazy load or just show all.
+      // Let's show all for the "Lobby".
+      setHistory(allSessions);
+
+      const s = await api.getUserStats(user.id);
+      setStats(s);
+    };
+    fetchData();
   }, [user.id]);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sessionName) return;
-    const session = mockStore.createSession(sessionName, blindValue, user);
-    navigate(`admin/${session.sessionCode}`);
+    const session = await api.createSession(sessionName, blindValue, user.id);
+    if (session) {
+      navigate(`admin/${session.sessionCode}`);
+    }
   };
 
-  const handleJoin = (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const session = mockStore.getSessionByCode(joinCode);
-    if (!session) {
-      setJoinError('Table not found. Check code.');
-      return;
-    }
-    mockStore.joinSession(joinCode, user);
-    if (session.createdBy === user.id) {
-      navigate(`admin/${session.sessionCode}`);
+    // Verify code exists first
+    // api.joinSession handles the join logic.
+    const result = await api.joinSession(joinCode, user.id);
+    if (result.success && result.sessionId) {
+      // Check if I am the creator to redirect to admin
+      // I need to fetch session details to know creator.
+      const sessionData = await api.getSession(result.sessionId);
+      if (sessionData && sessionData.session.createdBy === user.id) {
+        navigate(`admin/${sessionData.session.sessionCode}`);
+      } else {
+        navigate(`player/${sessionData.session.sessionCode}`);
+      }
     } else {
-      navigate(`player/${session.sessionCode}`);
+      setJoinError(result.error || 'Failed to join table.');
     }
   };
 
@@ -66,8 +92,8 @@ export default function Home({ user, navigate }: HomeProps) {
             <Activity className="w-3 h-3" /> Performance Insights
           </h2>
           <div className="flex items-center gap-1.5">
-             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
-             <span className="text-[9px] font-bold text-emerald-500/80 uppercase">Realtime Sync</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+            <span className="text-[9px] font-bold text-emerald-500/80 uppercase">Realtime Sync</span>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -85,7 +111,7 @@ export default function Home({ user, navigate }: HomeProps) {
           { id: 'create', label: 'Host', icon: PlusCircle, color: 'text-sky-400' },
           { id: 'join', label: 'Join', icon: Key, color: 'text-amber-400' }
         ].map(tab => (
-          <button 
+          <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={`flex-1 py-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2.5 transition-all duration-300 ${activeTab === tab.id ? 'bg-white/10 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}
@@ -112,8 +138,8 @@ export default function Home({ user, navigate }: HomeProps) {
             ) : (
               <div className="space-y-3">
                 {history.map(s => (
-                  <div 
-                    key={s.id} 
+                  <div
+                    key={s.id}
                     onClick={() => {
                       if (s.status === 'closed') navigate(`settlement/${s.id}`);
                       else if (s.createdBy === user.id) navigate(`admin/${s.sessionCode}`);

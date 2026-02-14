@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { User, Settlement as SettlementType } from '../types';
-import { mockStore } from '../services/mockStore';
+import { api } from '../services/api';
 import { ArrowRight, Trophy, Coins, CheckCircle2 } from 'lucide-react';
 
 interface SettlementProps {
@@ -11,16 +11,23 @@ interface SettlementProps {
 }
 
 export default function Settlement({ user, sessionId, navigate }: SettlementProps) {
-  const data = useMemo(() => {
-    const session = mockStore.getSessionById(sessionId);
-    const players = mockStore.getSessionPlayers(sessionId);
-    const buyIns = mockStore.getSessionBuyIns(sessionId).filter(b => b.status === 'approved');
-    return { session, players, buyIns };
+  const [data, setData] = React.useState<{ session: any; players: any[]; buyIns: any[] }>({ session: null, players: [], buyIns: [] });
+
+  React.useEffect(() => {
+    const fetchData = async () => {
+      const result = await api.getSession(sessionId);
+      if (result) {
+        // Filter buyins for approved only, if needed for 'data' state used in calculation
+        const approvedBuyIns = result.buyIns.filter(b => b.status === 'approved');
+        setData({ session: result.session, players: result.players, buyIns: approvedBuyIns });
+      }
+    };
+    fetchData();
   }, [sessionId]);
 
   const results = useMemo(() => {
     const { players, buyIns } = data;
-    
+
     return players.map(p => {
       const playerBuyIn = buyIns.filter(b => b.userId === p.userId).reduce((sum, b) => sum + b.amount, 0);
       const winnings = p.finalWinnings || 0;
@@ -38,20 +45,20 @@ export default function Settlement({ user, sessionId, navigate }: SettlementProp
   const settlements = useMemo((): SettlementType[] => {
     const givers = results.filter(r => r.net < 0).map(r => ({ ...r, net: Math.abs(r.net) }));
     const receivers = results.filter(r => r.net > 0).map(r => ({ ...r }));
-    
+
     const transactions: SettlementType[] = [];
-    
+
     let gIdx = 0;
     let rIdx = 0;
-    
+
     // Safety copy to avoid mutating memoized state
     const currentGivers = givers.map(g => ({ ...g }));
     const currentReceivers = receivers.map(r => ({ ...r }));
-    
+
     while (gIdx < currentGivers.length && rIdx < currentReceivers.length) {
       const giver = currentGivers[gIdx];
       const receiver = currentReceivers[rIdx];
-      
+
       const payment = Math.min(giver.net, receiver.net);
       if (payment > 0) {
         transactions.push({
@@ -60,14 +67,14 @@ export default function Settlement({ user, sessionId, navigate }: SettlementProp
           amount: Math.round(payment * 100) / 100
         });
       }
-      
+
       giver.net -= payment;
       receiver.net -= payment;
-      
+
       if (giver.net < 0.01) gIdx++;
       if (receiver.net < 0.01) rIdx++;
     }
-    
+
     return transactions;
   }, [results]);
 
@@ -121,7 +128,7 @@ export default function Settlement({ user, sessionId, navigate }: SettlementProp
 
       <section className="bg-emerald-500 rounded-3xl p-6 shadow-xl shadow-emerald-500/10 text-slate-950">
         <h2 className="text-xl font-black mb-6 flex items-center gap-2">
-          <CheckCircle2 className="w-6 h-6" /> 
+          <CheckCircle2 className="w-6 h-6" />
           Settlements (Who pays whom)
         </h2>
         <div className="space-y-3">
@@ -143,7 +150,7 @@ export default function Settlement({ user, sessionId, navigate }: SettlementProp
       </section>
 
       <div className="flex justify-center pt-4">
-        <button 
+        <button
           onClick={() => navigate('home')}
           className="px-8 py-4 bg-slate-900 border border-slate-800 rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-xl active:scale-95 text-white"
         >

@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, Session, SessionPlayer, BuyIn } from '../types';
-import { mockStore } from '../services/mockStore';
-// Added ShieldCheck to the imports below
-import { Clock, Wallet, CheckCircle, AlertCircle, Plus, LayoutDashboard, Zap, History, DollarSign, ShieldCheck } from 'lucide-react';
+import { User, Session, SessionPlayer as SessionPlayerType, BuyIn } from '../types';
+import { api } from '../services/api';
+import { Clock, Wallet, CheckCircle, AlertCircle, Plus, Zap, History, DollarSign, ShieldCheck } from 'lucide-react';
 
 interface SessionPlayerProps {
   user: User;
@@ -13,25 +12,22 @@ interface SessionPlayerProps {
 
 export default function SessionPlayer({ user, sessionCode, navigate }: SessionPlayerProps) {
   const [session, setSession] = useState<Session | null>(null);
-  const [playerInfo, setPlayerInfo] = useState<SessionPlayer | null>(null);
+  const [players, setPlayers] = useState<SessionPlayerType[]>([]);
   const [buyIns, setBuyIns] = useState<BuyIn[]>([]);
   const [amount, setAmount] = useState('');
   const [isRequesting, setIsRequesting] = useState(false);
 
-  const refreshData = () => {
-    const s = mockStore.getSessionByCode(sessionCode);
-    if (s) {
-      if (s.status === 'closed') {
-        navigate(`settlement/${s.id}`);
+  const refreshData = async () => {
+    const data = await api.getSession(sessionCode);
+    if (data) {
+      if (data.session.status === 'closed') {
+        navigate(`settlement/${data.session.id}`);
         return;
       }
-      setSession(s);
-      const ps = mockStore.getSessionPlayers(s.id);
-      setPlayerInfo(ps.find(p => p.userId === user.id) || null);
-      // Sort history latest first
-      const myBuyIns = mockStore.getSessionBuyIns(s.id)
-        .filter(b => b.userId === user.id)
-        .sort((a, b) => b.timestamp - a.timestamp);
+      setSession(data.session);
+      setPlayers(data.players);
+
+      const myBuyIns = data.buyIns.filter(b => b.userId === user.id).sort((a, b) => b.timestamp - a.timestamp);
       setBuyIns(myBuyIns);
     }
   };
@@ -42,10 +38,10 @@ export default function SessionPlayer({ user, sessionCode, navigate }: SessionPl
     return () => clearInterval(interval);
   }, [sessionCode]);
 
-  const handleRequest = (e: React.FormEvent) => {
+  const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session || !amount || parseFloat(amount) <= 0) return;
-    mockStore.requestBuyIn(session.id, user.id, parseFloat(amount));
+    await api.requestBuyIn(session.id, user.id, parseFloat(amount));
     setAmount('');
     setIsRequesting(false);
     refreshData();
@@ -95,7 +91,7 @@ export default function SessionPlayer({ user, sessionCode, navigate }: SessionPl
             Top Up
           </h2>
           {!isRequesting && (
-            <button 
+            <button
               onClick={() => setIsRequesting(true)}
               className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-2xl transition-all shadow-xl shadow-emerald-500/30 active:scale-95 flex items-center gap-2"
             >
@@ -137,7 +133,7 @@ export default function SessionPlayer({ user, sessionCode, navigate }: SessionPl
             <History className="w-4 h-4 text-slate-600" />
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Transaction Statement</h3>
           </div>
-          
+
           {buyIns.length === 0 ? (
             <div className="text-center py-20 bg-slate-950/50 rounded-3xl border border-slate-800/50">
               <p className="text-slate-600 font-bold italic text-sm">No chip history found</p>

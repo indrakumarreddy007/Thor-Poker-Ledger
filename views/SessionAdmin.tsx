@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, Session, SessionPlayer, BuyIn } from '../types';
-import { mockStore } from '../services/mockStore';
+import { api } from '../services/api';
 import { Check, X, Users, Wallet, Trophy, Plus, DollarSign, AlertTriangle, History, ChevronDown, ChevronUp, Clock, ShieldCheck } from 'lucide-react';
 
 interface SessionAdminProps {
@@ -21,45 +21,45 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  const refreshData = () => {
-    const s = mockStore.getSessionByCode(sessionCode);
-    if (s) {
-      if (s.createdBy !== user.id) {
+  const refreshData = async () => {
+    // api.getSession returns { session, players, buyIns }
+    const data = await api.getSession(sessionCode);
+    if (data) {
+      if (data.session.createdBy !== user.id) {
         navigate(`player/${sessionCode}`);
         return;
       }
-      if (s.status === 'closed') {
-        navigate(`settlement/${s.id}`);
+      if (data.session.status === 'closed') {
+        navigate(`settlement/${data.session.id}`);
         return;
       }
-      setSession(s);
-      setPlayers(mockStore.getSessionPlayers(s.id));
+      setSession(data.session);
+      setPlayers(data.players);
       // Sort buy-ins by timestamp descending (latest first)
-      const allBuyIns = mockStore.getSessionBuyIns(s.id).sort((a, b) => b.timestamp - a.timestamp);
-      setBuyIns(allBuyIns);
+      setBuyIns(data.buyIns);
     }
   };
 
   useEffect(() => {
     refreshData();
-    const interval = setInterval(refreshData, 3000); 
+    const interval = setInterval(refreshData, 3000);
     return () => clearInterval(interval);
   }, [sessionCode]);
 
-  const handleApprove = (id: string) => {
-    mockStore.updateBuyInStatus(id, 'approved');
+  const handleApprove = async (id: string) => {
+    await api.updateBuyInStatus(id, 'approved');
     refreshData();
   };
 
-  const handleReject = (id: string) => {
-    mockStore.updateBuyInStatus(id, 'rejected');
+  const handleReject = async (id: string) => {
+    await api.updateBuyInStatus(id, 'rejected');
     refreshData();
   };
 
-  const handleAdminBuyIn = (e: React.FormEvent) => {
+  const handleAdminBuyIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session || !ownAmount) return;
-    mockStore.requestBuyIn(session.id, user.id, parseFloat(ownAmount), 'approved');
+    await api.requestBuyIn(session.id, user.id, parseFloat(ownAmount), 'approved');
     setOwnAmount('');
     setIsAddingOwn(false);
     refreshData();
@@ -72,7 +72,7 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
     return { total, history };
   };
 
-  const finalizeSession = () => {
+  const finalizeSession = async () => {
     if (!session) return;
     let totalWinnings = 0;
     const approvedBuyIns = buyIns.filter(b => b.status === 'approved');
@@ -81,7 +81,7 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
     for (const player of players) {
       const val = parseFloat(finalChipCounts[player.userId] || '0');
       totalWinnings += val;
-      mockStore.updatePlayerWinnings(session.id, player.userId, val);
+      await api.settlePlayer(session.id, player.userId, val);
     }
 
     if (Math.abs(totalWinnings - totalBuyInPool) > 0.1) {
@@ -89,7 +89,7 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
       return;
     }
 
-    mockStore.updateSessionStatus(session.id, 'closed');
+    await api.updateSessionStatus(session.id, 'closed');
     navigate(`settlement/${session.id}`);
   };
 
@@ -117,7 +117,7 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
             </div>
           </div>
           <div className="flex gap-3">
-             <button
+            <button
               onClick={() => setIsAddingOwn(!isAddingOwn)}
               className="flex-1 md:flex-none bg-slate-800 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 px-5 py-3 rounded-2xl font-black transition-all flex items-center justify-center gap-2 border border-slate-700"
             >
@@ -137,8 +137,8 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
         <form onSubmit={handleAdminBuyIn} className="bg-emerald-500/5 border-2 border-emerald-500/20 p-6 rounded-[2rem] animate-in zoom-in-95 flex items-center gap-4">
           <div className="flex-1 relative">
             <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500" />
-            <input 
-              type="number" 
+            <input
+              type="number"
               autoFocus
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-emerald-500 outline-none font-black text-xl text-white"
               placeholder="0.00"
@@ -156,14 +156,14 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
           <div className="absolute top-0 left-0 w-full h-1 bg-amber-500"></div>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center">
-               <Trophy className="text-amber-500 w-6 h-6" />
+              <Trophy className="text-amber-500 w-6 h-6" />
             </div>
             <div>
               <h2 className="text-2xl font-black text-white">Final Chip Count</h2>
-              <p className="text-sm text-slate-400 font-medium">Verify that all chips on table match the pool of ₹{buyIns.filter(b => b.status === 'approved').reduce((s,b)=>s+b.amount,0)}</p>
+              <p className="text-sm text-slate-400 font-medium">Verify that all chips on table match the pool of ₹{buyIns.filter(b => b.status === 'approved').reduce((s, b) => s + b.amount, 0)}</p>
             </div>
           </div>
-          
+
           <div className="space-y-3">
             {players.map(p => (
               <div key={p.userId} className="flex items-center justify-between p-5 bg-slate-950 rounded-2xl border border-slate-800 focus-within:border-amber-500/50 transition-all group">
@@ -246,19 +246,19 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
                       const isExpanded = expandedPlayer === p.userId;
                       return (
                         <React.Fragment key={p.userId}>
-                          <tr 
+                          <tr
                             onClick={() => setExpandedPlayer(isExpanded ? null : p.userId)}
                             className={`transition-all group cursor-pointer ${isExpanded ? 'bg-emerald-500/[0.03]' : 'hover:bg-slate-950/50'}`}
                           >
                             <td className="px-6 py-5">
                               <div className="flex items-center gap-4">
-                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm transition-all ${isExpanded ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500 group-hover:bg-slate-700'}`}>
-                                    {p.name.charAt(0)}
-                                 </div>
-                                 <div>
-                                    <p className="font-black text-slate-200">{p.name}</p>
-                                    <p className="text-[9px] font-bold text-slate-500 uppercase">{stats.history.length} Transactions</p>
-                                 </div>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm transition-all ${isExpanded ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500 group-hover:bg-slate-700'}`}>
+                                  {p.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <p className="font-black text-slate-200">{p.name}</p>
+                                  <p className="text-[9px] font-bold text-slate-500 uppercase">{stats.history.length} Transactions</p>
+                                </div>
                               </div>
                             </td>
                             <td className="px-6 py-5 text-right font-mono text-emerald-400 font-black text-lg">₹{stats.total}</td>
@@ -286,11 +286,10 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
                                             <div className="text-[10px] font-mono text-slate-600 group-hover/item:text-slate-400 transition-colors">{new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                             <div className="text-sm font-black text-slate-100">₹{r.amount}</div>
                                           </div>
-                                          <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${
-                                            r.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
-                                            r.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 
-                                            'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                                          }`}>
+                                          <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${r.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                            r.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                              'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                            }`}>
                                             {r.status}
                                           </div>
                                         </div>
@@ -312,46 +311,45 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
 
           {/* Table-wide Global Audit Log */}
           <section className="space-y-4 pt-6">
-             <div className="flex items-center justify-between px-2">
-               <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4" /> Global Table Audit Log
-               </h2>
-               <span className="text-[9px] font-bold text-slate-600 uppercase">Realtime Feed</span>
-             </div>
-             <div className="bg-slate-900/50 rounded-[2rem] border border-slate-800 p-2 max-h-80 overflow-y-auto custom-scrollbar shadow-inner">
-                {buyIns.length === 0 ? (
-                  <div className="py-20 text-center text-slate-700 text-[10px] font-black uppercase tracking-widest flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 rounded-full border border-slate-800 flex items-center justify-center opacity-20">♠</div>
-                    Feed Ready
-                  </div>
-                ) : (
-                  buyIns.map((b, idx) => {
-                    const player = players.find(p => p.userId === b.userId);
-                    return (
-                      <div key={b.id} className={`flex items-center justify-between p-5 rounded-2xl transition-all hover:bg-white/[0.02] group ${idx % 2 === 0 ? 'bg-slate-950/20' : ''}`}>
-                         <div className="flex items-center gap-5">
-                            <div className="font-mono text-[10px] text-slate-600 group-hover:text-slate-400 transition-colors">
-                              {new Date(b.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'})}
-                            </div>
-                            <div>
-                               <p className="text-sm font-black text-slate-200">{player?.name || 'Observer'}</p>
-                               <p className="text-[10px] text-slate-500 font-bold uppercase">Attempted <span className="text-emerald-400">₹{b.amount}</span></p>
-                            </div>
-                         </div>
-                         <div className="flex items-center gap-3">
-                            <div className={`text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${
-                              b.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
-                              b.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 
-                              'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                            }`}>
-                               {b.status}
-                            </div>
-                         </div>
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" /> Global Table Audit Log
+              </h2>
+              <span className="text-[9px] font-bold text-slate-600 uppercase">Realtime Feed</span>
+            </div>
+            <div className="bg-slate-900/50 rounded-[2rem] border border-slate-800 p-2 max-h-80 overflow-y-auto custom-scrollbar shadow-inner">
+              {buyIns.length === 0 ? (
+                <div className="py-20 text-center text-slate-700 text-[10px] font-black uppercase tracking-widest flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 rounded-full border border-slate-800 flex items-center justify-center opacity-20">♠</div>
+                  Feed Ready
+                </div>
+              ) : (
+                buyIns.map((b, idx) => {
+                  const player = players.find(p => p.userId === b.userId);
+                  return (
+                    <div key={b.id} className={`flex items-center justify-between p-5 rounded-2xl transition-all hover:bg-white/[0.02] group ${idx % 2 === 0 ? 'bg-slate-950/20' : ''}`}>
+                      <div className="flex items-center gap-5">
+                        <div className="font-mono text-[10px] text-slate-600 group-hover:text-slate-400 transition-colors">
+                          {new Date(b.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-slate-200">{player?.name || 'Observer'}</p>
+                          <p className="text-[10px] text-slate-500 font-bold uppercase">Attempted <span className="text-emerald-400">₹{b.amount}</span></p>
+                        </div>
                       </div>
-                    );
-                  })
-                )}
-             </div>
+                      <div className="flex items-center gap-3">
+                        <div className={`text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${b.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                          b.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                            'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                          }`}>
+                          {b.status}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </section>
         </>
       )}

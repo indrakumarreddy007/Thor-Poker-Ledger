@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
-import { mockStore } from '../services/mockStore';
+import { api } from '../services/api';
 import { LogIn, UserPlus, ShieldCheck } from 'lucide-react';
 
 interface LoginProps {
@@ -15,7 +15,7 @@ export default function Login({ onLogin }: LoginProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -24,7 +24,7 @@ export default function Login({ onLogin }: LoginProps) {
         setError('All fields are required');
         return;
       }
-      const result = mockStore.register(name, username, password);
+      const result = await api.register(name, username, password);
       if (result.success && result.user) {
         onLogin(result.user);
       } else {
@@ -35,7 +35,7 @@ export default function Login({ onLogin }: LoginProps) {
         setError('Username and password are required');
         return;
       }
-      const result = mockStore.authenticate(username, password);
+      const result = await api.login(username, password);
       if (result.success && result.user) {
         onLogin(result.user);
       } else {
@@ -85,7 +85,7 @@ export default function Login({ onLogin }: LoginProps) {
                 />
               </div>
             )}
-            
+
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Username</label>
               <input

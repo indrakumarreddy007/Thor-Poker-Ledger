@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { User } from './types';
-import { mockStore } from './services/mockStore';
 import Login from './views/Login';
 import Home from './views/Home';
 import SessionAdmin from './views/SessionAdmin';
@@ -14,8 +13,11 @@ export default function App() {
   const [routeParams, setRouteParams] = useState<any>(null);
 
   useEffect(() => {
-    const loggedUser = mockStore.getCurrentUser();
-    if (loggedUser) setUser(loggedUser);
+    // Determine active user from local storage (simple auth persistence)
+    const storedUser = localStorage.getItem('poker_ledger_user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
 
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
@@ -31,12 +33,12 @@ export default function App() {
   }, []);
 
   const handleLogin = (u: User) => {
-    mockStore.setCurrentUser(u);
+    localStorage.setItem('poker_ledger_user', JSON.stringify(u));
     setUser(u);
   };
 
   const handleLogout = () => {
-    mockStore.logout();
+    localStorage.removeItem('poker_ledger_user');
     setUser(null);
     window.location.hash = '';
   };
@@ -67,8 +69,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 overflow-x-hidden">
       <nav className="border-b border-slate-800 px-4 py-3 flex justify-between items-center sticky top-0 bg-slate-950 z-50">
-        <div 
-          className="flex items-center gap-2 cursor-pointer" 
+        <div
+          className="flex items-center gap-2 cursor-pointer"
           onClick={() => navigate('home')}
         >
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-slate-950 font-bold">
@@ -78,7 +80,7 @@ export default function App() {
         </div>
         <div className="flex items-center gap-4">
           <span className="text-slate-400 text-sm hidden sm:inline">Hi, {user.name}</span>
-          <button 
+          <button
             onClick={handleLogout}
             className="text-xs text-slate-500 hover:text-red-400 transition-colors"
           >
