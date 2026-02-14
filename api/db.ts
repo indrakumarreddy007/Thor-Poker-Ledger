@@ -27,6 +27,6 @@ if (!globalThis._postgresPool) {
     });
 }
 
-pool = globalThis._postgresPool;
+pool = globalThis._postgresPool!;
 
 export default pool;
