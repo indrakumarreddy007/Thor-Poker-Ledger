@@ -1,5 +1,6 @@
-import pg from 'pg';
-const { Pool } = pg;
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { Pool } = require('pg');
 
 // Use a singleton pattern to avoid multiple pools in serverless environment
 // and handle potential import issues with pg in ESM.
