@@ -47,11 +47,19 @@ export const api = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, username, password })
             });
-            const data = await res.json();
-            if (!res.ok) return { success: false, error: data.error };
-            return { success: true, user: mapUser(data.user) };
-        } catch (e) {
-            return { success: false, error: 'Network error' };
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await res.json();
+                if (!res.ok) return { success: false, error: data.error || `Error ${res.status}` };
+                return { success: true, user: mapUser(data.user) };
+            } else {
+                const text = await res.text();
+                console.error("API Error (Non-JSON response):", res.status, text);
+                return { success: false, error: `Server Error (${res.status}). Check console.` };
+            }
+        } catch (e: any) {
+            console.error("Network Exception:", e);
+            return { success: false, error: `Network error: ${e.message}` };
         }
     },
 
@@ -62,11 +70,19 @@ export const api = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
-            const data = await res.json();
-            if (!res.ok) return { success: false, error: data.error };
-            return { success: true, user: mapUser(data.user) };
-        } catch (e) {
-            return { success: false, error: 'Network error' };
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await res.json();
+                if (!res.ok) return { success: false, error: data.error || `Error ${res.status}` };
+                return { success: true, user: mapUser(data.user) };
+            } else {
+                const text = await res.text();
+                console.error("API Error (Non-JSON response):", res.status, text);
+                return { success: false, error: `Server Error (${res.status}). Check console.` };
+            }
+        } catch (e: any) {
+            console.error("Network Exception:", e);
+            return { success: false, error: `Network error: ${e.message}` };
         }
     },
 
