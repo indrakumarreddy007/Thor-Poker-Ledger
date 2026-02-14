@@ -1,0 +1,5 @@
+{
+  "name": "Thor Poker Ledger",
+  "description": "A streamlined poker session tracker to manage buy-ins, player approvals, and final settlements with a clean dark-themed UI.",
+  "requestFramePermissions": []
+}
