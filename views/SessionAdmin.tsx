@@ -21,22 +21,33 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
   const [error, setError] = useState('');
 
+  const [fetchError, setFetchError] = useState('');
+
   const refreshData = async () => {
     // api.getSession returns { session, players, buyIns }
-    const data = await api.getSession(sessionCode);
-    if (data) {
-      if (data.session.createdBy !== user.id) {
-        navigate(`player/${sessionCode}`);
-        return;
+    try {
+      const data = await api.getSession(sessionCode);
+      if (data) {
+        if (data.session.createdBy !== user.id) {
+          navigate(`player/${sessionCode}`);
+          return;
+        }
+        if (data.session.status === 'closed') {
+          navigate(`settlement/${data.session.id}`);
+          return;
+        }
+        setSession(data.session);
+        setPlayers(data.players);
+        // Sort buy-ins by timestamp descending (latest first)
+        setBuyIns(data.buyIns);
+        setFetchError('');
+      } else {
+        console.error("Failed to fetch session data (data is null)");
+        // Only set error if we don't have a session yet
+        if (!session) setFetchError('Failed to load session data. Please check connection.');
       }
-      if (data.session.status === 'closed') {
-        navigate(`settlement/${data.session.id}`);
-        return;
-      }
-      setSession(data.session);
-      setPlayers(data.players);
-      // Sort buy-ins by timestamp descending (latest first)
-      setBuyIns(data.buyIns);
+    } catch (e: any) {
+      if (!session) setFetchError('Network error loading session.');
     }
   };
 
@@ -46,54 +57,24 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
     return () => clearInterval(interval);
   }, [sessionCode]);
 
-  const handleApprove = async (id: string) => {
-    await api.updateBuyInStatus(id, 'approved');
-    refreshData();
-  };
+  // ... (handlers)
 
-  const handleReject = async (id: string) => {
-    await api.updateBuyInStatus(id, 'rejected');
-    refreshData();
-  };
-
-  const handleAdminBuyIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!session || !ownAmount) return;
-    await api.requestBuyIn(session.id, user.id, parseFloat(ownAmount), 'approved');
-    setOwnAmount('');
-    setIsAddingOwn(false);
-    refreshData();
-  };
-
-  const getPlayerStats = (userId: string) => {
-    const playerBuyIns = buyIns.filter(b => b.userId === userId && b.status === 'approved');
-    const total = playerBuyIns.reduce((sum, b) => sum + b.amount, 0);
-    const history = buyIns.filter(b => b.userId === userId);
-    return { total, history };
-  };
-
-  const finalizeSession = async () => {
-    if (!session) return;
-    let totalWinnings = 0;
-    const approvedBuyIns = buyIns.filter(b => b.status === 'approved');
-    const totalBuyInPool = approvedBuyIns.reduce((sum, b) => sum + b.amount, 0);
-
-    for (const player of players) {
-      const val = parseFloat(finalChipCounts[player.userId] || '0');
-      totalWinnings += val;
-      await api.settlePlayer(session.id, player.userId, val);
+  if (!session) {
+    if (fetchError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+          <div className="text-rose-400 font-bold uppercase tracking-widest">{fetchError}</div>
+          <button
+            onClick={() => navigate('home')}
+            className="px-6 py-2 bg-slate-800 rounded-full text-xs font-bold hover:bg-slate-700 transition"
+          >
+            Return to Lobby
+          </button>
+        </div>
+      );
     }
-
-    if (Math.abs(totalWinnings - totalBuyInPool) > 0.1) {
-      setError(`Audit Failed: Chips Out (₹${totalWinnings}) ≠ Pool (₹${totalBuyInPool}).`);
-      return;
-    }
-
-    await api.updateSessionStatus(session.id, 'closed');
-    navigate(`settlement/${session.id}`);
-  };
-
-  if (!session) return <div className="text-center py-20 text-slate-500 animate-pulse font-bold uppercase tracking-widest">Loading Secure Table...</div>;
+    return <div className="text-center py-20 text-slate-500 animate-pulse font-bold uppercase tracking-widest">Loading Secure Table...</div>;
+  }
 
   const pendingBuyIns = buyIns.filter(b => b.status === 'pending');
 

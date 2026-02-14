@@ -60,6 +60,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     } catch (error: any) {
         console.error('Error fetching session details:', error);
-        return res.status(500).json({ error: 'Failed to fetch session details' });
+        return res.status(500).json({ error: `Failed to fetch session details: ${error.message}` });
     }
 }
