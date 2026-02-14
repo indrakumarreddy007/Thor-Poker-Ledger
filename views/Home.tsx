@@ -8,14 +8,15 @@ interface HomeProps {
   user: User;
   onLogout: () => void;
   navigate: (path: string) => void;
+  initialCode?: string;
 }
 
-export default function Home({ user, navigate }: HomeProps) {
+export default function Home({ user, navigate, initialCode }: HomeProps) {
   const [sessionName, setSessionName] = useState('');
   const [blindValue, setBlindValue] = useState('10/20');
-  const [joinCode, setJoinCode] = useState('');
+  const [joinCode, setJoinCode] = useState(initialCode || '');
   const [joinError, setJoinError] = useState('');
-  const [activeTab, setActiveTab] = useState<'dash' | 'create' | 'join'>('dash');
+  const [activeTab, setActiveTab] = useState<'dash' | 'create' | 'join'>(initialCode ? 'join' : 'dash');
 
   const [history, setHistory] = useState<Session[]>([]);
   const [stats, setStats] = useState<PlayerStats>({ weeklyPL: 0, monthlyPL: 0, yearlyPL: 0, totalPL: 0 });

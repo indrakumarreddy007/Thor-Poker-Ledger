@@ -62,6 +62,8 @@ export default function App() {
         return <SessionPlayer user={user} sessionCode={routeParams} navigate={navigate} />;
       case 'settlement':
         return <Settlement user={user} sessionId={routeParams} navigate={navigate} />;
+      case 'join':
+        return <Home user={user} onLogout={handleLogout} navigate={navigate} initialCode={routeParams} />;
       default:
         return <Home user={user} onLogout={handleLogout} navigate={navigate} />;
     }

@@ -138,6 +138,17 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
               <div className="flex items-center gap-1">
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Access Code:</span>
                 <span className="font-mono text-emerald-400 font-black bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 select-all">{session.sessionCode}</span>
+                <button
+                  onClick={() => {
+                    const link = `${window.location.origin}/#/join/${session.sessionCode}`;
+                    navigator.clipboard.writeText(link);
+                    alert(`Copied Invite Link: ${link}`);
+                  }}
+                  className="p-1.5 bg-slate-800 hover:bg-emerald-500 text-slate-400 hover:text-slate-950 rounded transition-colors"
+                  title="Copy Invite Link"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                </button>
               </div>
               <div className="w-1 h-1 rounded-full bg-slate-700"></div>
               <span className="text-xs text-slate-400 font-medium">Blinds: {session.blindValue}</span>
