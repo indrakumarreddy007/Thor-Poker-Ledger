@@ -42,6 +42,15 @@ CREATE TABLE buy_ins (
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 5. Cash-Outs table
+CREATE TABLE cash_outs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    amount NUMERIC(12, 2) NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexing for performance
 CREATE INDEX idx_sessions_code ON sessions(session_code);
 CREATE INDEX idx_buy_ins_session ON buy_ins(session_id);
