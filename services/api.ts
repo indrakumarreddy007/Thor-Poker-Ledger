@@ -42,10 +42,10 @@ export const api = {
     // Auth
     register: async (name: string, username: string, password: string): Promise<{ success: boolean; error?: string; user?: User }> => {
         try {
-            const res = await fetch(`${API_BASE}/auth?type=register`, {
+            const res = await fetch(`${API_BASE}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, username, password, action: 'register' })
+                body: JSON.stringify({ name, username, password })
             });
             const contentType = res.headers.get("content-type");
             if (contentType && contentType.indexOf("application/json") !== -1) {
@@ -54,20 +54,22 @@ export const api = {
                 return { success: true, user: mapUser(data.user) };
             } else {
                 const text = await res.text();
+                console.error("API Error (Non-JSON response):", res.status, text);
                 // Return the raw text (truncated) to help debugging in UI
                 return { success: false, error: `Server Error (${res.status}): ${text.slice(0, 100)}...` };
             }
         } catch (e: any) {
+            console.error("Network Exception:", e);
             return { success: false, error: `Network error: ${e.message}` };
         }
     },
 
     login: async (username: string, password: string): Promise<{ success: boolean; error?: string; user?: User }> => {
         try {
-            const res = await fetch(`${API_BASE}/auth?type=login`, {
+            const res = await fetch(`${API_BASE}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, action: 'login' })
+                body: JSON.stringify({ username, password })
             });
             const contentType = res.headers.get("content-type");
             if (contentType && contentType.indexOf("application/json") !== -1) {
@@ -76,9 +78,12 @@ export const api = {
                 return { success: true, user: mapUser(data.user) };
             } else {
                 const text = await res.text();
+                console.error("API Error (Non-JSON response):", res.status, text);
+                // Return the raw text (truncated) to help debugging in UI
                 return { success: false, error: `Server Error (${res.status}): ${text.slice(0, 100)}...` };
             }
         } catch (e: any) {
+            console.error("Network Exception:", e);
             return { success: false, error: `Network error: ${e.message}` };
         }
     },
@@ -105,9 +110,11 @@ export const api = {
                 return { success: true, session: mapSession(data) };
             } else {
                 const text = await res.text();
+                console.error("API Error (Non-JSON response):", res.status, text);
                 return { success: false, error: `Server Error (${res.status}): ${text.slice(0, 100)}...` };
             }
         } catch (e: any) {
+            console.error("Network Exception:", e);
             return { success: false, error: `Network error: ${e.message}` };
         }
     },
@@ -131,10 +138,10 @@ export const api = {
     },
 
     joinSession: async (code: string, userId: string, role: Role = 'player'): Promise<{ success: boolean; error?: string; player?: SessionPlayer; sessionId?: string }> => {
-        const res = await fetch(`${API_BASE}/actions?type=join`, {
+        const res = await fetch(`${API_BASE}/session/join`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, userId, role, action: 'join' })
+            body: JSON.stringify({ code, userId, role })
         });
         const data = await res.json();
         if (!res.ok) return { success: false, error: data.error };
@@ -142,18 +149,19 @@ export const api = {
     },
 
     requestBuyIn: async (sessionId: string, userId: string, amount: number, status: BuyInStatus = 'pending'): Promise<{ success: boolean; error?: string; buyIn?: BuyIn }> => {
-        const res = await fetch(`${API_BASE}/transaction?type=buyin`, {
+        const res = await fetch(`${API_BASE}/session/buyin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId, userId, amount, status, type: 'buyin' })
+            body: JSON.stringify({ sessionId, userId, amount, status })
         });
         const data = await res.json();
         if (!res.ok) return { success: false, error: data.error };
         return { success: true, buyIn: mapBuyIn(data.buyIn) };
     },
 
+    // Corrected updateBuyInStatus implementation in api object
     updateBuyInStatus: async (buyInId: string, status: BuyInStatus): Promise<boolean> => {
-        const res = await fetch(`${API_BASE}/transaction/${buyInId}?type=buyin`, {
+        const res = await fetch(`${API_BASE}/buyin/${buyInId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status })
@@ -161,8 +169,9 @@ export const api = {
         return res.ok;
     },
 
+    // New: Update BuyIn Amount
     updateBuyInAmount: async (buyInId: string, amount: number): Promise<boolean> => {
-        const res = await fetch(`${API_BASE}/transaction/${buyInId}?type=buyin`, {
+        const res = await fetch(`${API_BASE}/buyin/${buyInId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -170,26 +179,30 @@ export const api = {
         return res.ok;
     },
 
+    // New: Delete BuyIn (Revert)
     deleteBuyIn: async (buyInId: string): Promise<boolean> => {
-        const res = await fetch(`${API_BASE}/transaction/${buyInId}?type=buyin`, {
+        const res = await fetch(`${API_BASE}/buyin/${buyInId}`, {
             method: 'DELETE'
         });
         return res.ok;
     },
 
+    // New: Cash Out
     cashOut: async (sessionId: string, userId: string, amount: number): Promise<{ success: boolean; error?: string; cashOut?: CashOut }> => {
-        const res = await fetch(`${API_BASE}/transaction?type=cashout`, {
+        const res = await fetch(`${API_BASE}/session/cashout`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId, userId, amount, type: 'cashout' })
+            body: JSON.stringify({ sessionId, userId, amount })
         });
         const data = await res.json();
         if (!res.ok) return { success: false, error: data.error };
+        // Map response if needed, for now assuming it matches
         return { success: true, cashOut: { ...data.cashOut, amount: parseFloat(data.cashOut.amount), timestamp: new Date(data.cashOut.timestamp).getTime() } };
     },
 
+    // New: Update Cash Out
     updateCashOut: async (cashOutId: string, amount: number): Promise<boolean> => {
-        const res = await fetch(`${API_BASE}/transaction/${cashOutId}?type=cashout`, {
+        const res = await fetch(`${API_BASE}/cashout/${cashOutId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -197,27 +210,28 @@ export const api = {
         return res.ok;
     },
 
+    // New: Delete Cash Out
     deleteCashOut: async (cashOutId: string): Promise<boolean> => {
-        const res = await fetch(`${API_BASE}/transaction/${cashOutId}?type=cashout`, {
+        const res = await fetch(`${API_BASE}/cashout/${cashOutId}`, {
             method: 'DELETE'
         });
         return res.ok;
     },
 
     updateSessionStatus: async (sessionId: string, status: SessionStatus): Promise<boolean> => {
-        const res = await fetch(`${API_BASE}/actions?type=status`, {
+        const res = await fetch(`${API_BASE}/session/status`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId, status, action: 'status' })
+            body: JSON.stringify({ sessionId, status })
         });
         return res.ok;
     },
 
     settlePlayer: async (sessionId: string, userId: string, winnings: number): Promise<boolean> => {
-        const res = await fetch(`${API_BASE}/actions?type=settle`, {
+        const res = await fetch(`${API_BASE}/session/settle`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId, userId, winnings, action: 'settle' })
+            body: JSON.stringify({ sessionId, userId, winnings })
         });
         return res.ok;
     },
