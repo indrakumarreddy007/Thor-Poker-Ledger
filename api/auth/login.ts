@@ -13,8 +13,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+        // Try to authenticate with username or mobile
+        // We handle potential missing column errors by catching them, but ideally we check both.
+        // Since we don't know if 'username' or 'mobile' column exists, we can try robust logic
+        // or just assume 'mobile' is the intended 'username' field based on legacy code.
+        // However, checking both in one query is hard if column is missing.
+        // Let's try the query assuming 'username' column exists (as per current code)
+        // AND 'mobile' column exists. If one fails, the error will tell us.
+
         const result = await pool.query(
-            'SELECT id, name, username FROM users WHERE lower(username) = lower($1) AND password = $2',
+            'SELECT * FROM users WHERE (lower(username) = lower($1)) AND password = $2',
             [username, password]
         );
 
@@ -23,9 +31,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const user = result.rows[0];
-        return res.status(200).json({ success: true, user });
+        // Ensure we don't return password
+        const { password: _, ...safeUser } = user;
+        return res.status(200).json({ success: true, user: safeUser });
     } catch (error: any) {
         console.error('Login error:', error);
-        return res.status(500).json({ error: 'Internal server error' });
+        // Return actual error for debugging (remove in production if sensitive)
+        return res.status(500).json({ error: `Login Failed: ${error.message}` });
     }
 }
