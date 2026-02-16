@@ -50,17 +50,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 [session.id]
             );
 
-            // Get cash-outs
-            const cashOutsResult = await client.query(
-                `SELECT * FROM cash_outs WHERE session_id = $1 ORDER BY timestamp DESC`,
-                [session.id]
-            );
-
             return res.status(200).json({
                 session,
                 players: playersResult.rows,
-                buyIns: buyInsResult.rows,
-                cashOuts: cashOutsResult.rows
+                buyIns: buyInsResult.rows
             });
         } finally {
             client.release();

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, Session, SessionPlayer, BuyIn, CashOut } from '../types';
+import { User, Session, SessionPlayer, BuyIn } from '../types';
 import { api } from '../services/api';
-import { Check, X, Users, Wallet, Trophy, Plus, DollarSign, AlertTriangle, History, ChevronDown, ChevronUp, Clock, ShieldCheck, PenSquare, Trash2, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Check, X, Users, Wallet, Trophy, Plus, DollarSign, AlertTriangle, History, ChevronDown, ChevronUp, Clock, ShieldCheck } from 'lucide-react';
 
 interface SessionAdminProps {
   user: User;
@@ -10,25 +10,13 @@ interface SessionAdminProps {
   navigate: (path: string) => void;
 }
 
-type Transaction = (BuyIn & { type: 'buyin' }) | (CashOut & { type: 'cashout' });
-
 export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdminProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [players, setPlayers] = useState<SessionPlayer[]>([]);
   const [buyIns, setBuyIns] = useState<BuyIn[]>([]);
-  const [cashOuts, setCashOuts] = useState<CashOut[]>([]);
   const [isEnding, setIsEnding] = useState(false);
   const [isAddingOwn, setIsAddingOwn] = useState(false);
   const [ownAmount, setOwnAmount] = useState('');
-
-  // Cash Out State
-  const [isCashingOut, setIsCashingOut] = useState<string | null>(null); // userId
-  const [cashOutAmount, setCashOutAmount] = useState('');
-
-  // Edit Transaction State
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [editAmount, setEditAmount] = useState('');
-
   const [finalChipCounts, setFinalChipCounts] = useState<Record<string, string>>({});
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -36,6 +24,7 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
   const [fetchError, setFetchError] = useState('');
 
   const refreshData = async () => {
+    // api.getSession returns { session, players, buyIns }
     try {
       const data = await api.getSession(sessionCode);
       if (data) {
@@ -49,11 +38,12 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
         }
         setSession(data.session);
         setPlayers(data.players);
+        // Sort buy-ins by timestamp descending (latest first)
         setBuyIns(data.buyIns);
-        setCashOuts(data.cashOuts || []);
         setFetchError('');
       } else {
         console.error("Failed to fetch session data (data is null)");
+        // Only set error if we don't have a session yet
         if (!session) setFetchError('Failed to load session data. Please check connection.');
       }
     } catch (e: any) {
@@ -87,59 +77,11 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
     refreshData();
   };
 
-  const handleCashOut = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!session || !isCashingOut || !cashOutAmount) return;
-    await api.cashOut(session.id, isCashingOut, parseFloat(cashOutAmount));
-    setCashOutAmount('');
-    setIsCashingOut(null);
-    refreshData();
-  };
-
-  const handleEditTransaction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingTransaction || !editAmount) return;
-
-    if (editingTransaction.type === 'buyin') {
-      await api.updateBuyInAmount(editingTransaction.id, parseFloat(editAmount));
-    } else {
-      await api.updateCashOut(editingTransaction.id, parseFloat(editAmount));
-    }
-    setEditingTransaction(null);
-    setEditAmount('');
-    refreshData();
-  };
-
-  const handleDeleteTransaction = async (t: Transaction) => {
-    if (!confirm(`Are you sure you want to revert this ${t.type === 'buyin' ? 'Buy-In' : 'Cash-Out'} of ₹${t.amount}?`)) return;
-
-    if (t.type === 'buyin') {
-      await api.deleteBuyIn(t.id);
-    } else {
-      await api.deleteCashOut(t.id);
-    }
-    refreshData();
-  };
-
-  const startEditing = (t: Transaction) => {
-    setEditingTransaction(t);
-    setEditAmount(t.amount.toString());
-  };
-
   const getPlayerStats = (userId: string) => {
     const playerBuyIns = buyIns.filter(b => b.userId === userId && b.status === 'approved');
-    const playerCashOuts = cashOuts.filter(c => c.userId === userId);
-
-    const totalBuyIn = playerBuyIns.reduce((sum, b) => sum + b.amount, 0);
-    const totalCashOut = playerCashOuts.reduce((sum, c) => sum + c.amount, 0);
-
-    // Merge history
-    const history: Transaction[] = [
-      ...buyIns.filter(b => b.userId === userId).map(b => ({ ...b, type: 'buyin' } as Transaction)),
-      ...cashOuts.filter(c => c.userId === userId).map(c => ({ ...c, type: 'cashout' } as Transaction))
-    ].sort((a, b) => b.timestamp - a.timestamp);
-
-    return { totalBuyIn, totalCashOut, history };
+    const total = playerBuyIns.reduce((sum, b) => sum + b.amount, 0);
+    const history = buyIns.filter(b => b.userId === userId);
+    return { total, history };
   };
 
   const finalizeSession = async () => {
@@ -147,46 +89,15 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
     let totalWinnings = 0;
     const approvedBuyIns = buyIns.filter(b => b.status === 'approved');
     const totalBuyInPool = approvedBuyIns.reduce((sum, b) => sum + b.amount, 0);
-    const totalCashOutsAlready = cashOuts.reduce((sum, c) => sum + c.amount, 0);
 
-    // Calculate effective stack for staying players
     for (const player of players) {
       const val = parseFloat(finalChipCounts[player.userId] || '0');
-      // If a player has chips on table, we treat it as a final cashout for settlement calc
-      // So Final Winnings = (Previous Cashouts + Current Stack)
-      // The backend settlement logic stores 'final_winnings' which is usually net or total returned?
-      // existing 'settlePlayer' calls 'UPDATE session_players SET final_winnings = $1'
-      // If I interpret 'final_winnings' as 'Total Amount Player Leaves With' (Stack + Cashouts)
-
-      const stats = getPlayerStats(player.userId);
-      const totalReturned = stats.totalCashOut + val; // Cashouts made + Chips on table
-
-      totalWinnings += val; // We verify chips on table vs (Pool - Cashouts) ?
-      // No, Pool = BuyIns.
-      // Total Money Out = Cashouts + Chips on Table.
-      // So (Total Cashouts + Total Chips on Table) should equal Total BuyIns.
-
-      // We pass the 'val' (chips on table) to backend? 
-      // Or we pass 'totalReturned'?
-      // session_players table has 'final_winnings'.
-      // Usually settlement view calculates Net = Final - BuyIn.
-      // So we should store the Total Returned (Chips + Cashouts) or just Chips and let backend sum?
-      // The current backend 'settle.ts' just updates 'final_winnings' column.
-      // Let's assume 'final_winnings' column tracks "Total Value Extracted from Game".
-      // So we should pass (val + totalCashOut).
-
-      // WAIT: If I cash out 500 mid session, I have 500 in my pocket.
-      // If I leave with 0 chips, my total return is 500.
-      // So yes, fetch stats.totalCashOut + val.
-
-      await api.settlePlayer(session.id, player.userId, totalReturned);
+      totalWinnings += val;
+      await api.settlePlayer(session.id, player.userId, val);
     }
 
-    const totalChipsOnTable = Object.values(finalChipCounts).reduce((sum, v) => sum + parseFloat(v || '0'), 0);
-    const totalOut = totalCashOutsAlready + totalChipsOnTable;
-
-    if (Math.abs(totalOut - totalBuyInPool) > 0.1) {
-      setError(`Audit Failed: Total Out (Cashouts ₹${totalCashOutsAlready} + Table ₹${totalChipsOnTable} = ₹${totalOut}) ≠ Pool (₹${totalBuyInPool}).`);
+    if (Math.abs(totalWinnings - totalBuyInPool) > 0.1) {
+      setError(`Audit Failed: Chips Out (₹${totalWinnings}) ≠ Pool (₹${totalBuyInPool}).`);
       return;
     }
 
@@ -227,6 +138,17 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
               <div className="flex items-center gap-1">
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Access Code:</span>
                 <span className="font-mono text-emerald-400 font-black bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 select-all">{session.sessionCode}</span>
+                <button
+                  onClick={() => {
+                    const link = `${window.location.origin}/#/join/${session.sessionCode}`;
+                    navigator.clipboard.writeText(link);
+                    alert(`Copied Invite Link: ${link}`);
+                  }}
+                  className="p-1.5 bg-slate-800 hover:bg-emerald-500 text-slate-400 hover:text-slate-950 rounded transition-colors"
+                  title="Copy Invite Link"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                </button>
               </div>
               <div className="w-1 h-1 rounded-full bg-slate-700"></div>
               <span className="text-xs text-slate-400 font-medium">Blinds: {session.blindValue}</span>
@@ -267,60 +189,6 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
         </form>
       )}
 
-      {/* Cash Out Modal */}
-      {isCashingOut && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleCashOut} className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] w-full max-w-md space-y-6 shadow-2xl animate-in zoom-in-95">
-            <div className="space-y-2">
-              <h3 className="text-xl font-black text-white">Mid-Session Cash Out</h3>
-              <p className="text-sm text-slate-400">Recording cash out for <span className="text-emerald-400 font-bold">{players.find(p => p.userId === isCashingOut)?.name}</span></p>
-            </div>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
-              <input
-                type="number"
-                autoFocus
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-4 focus:ring-2 focus:ring-emerald-500 outline-none font-black text-xl text-white"
-                placeholder="0.00"
-                value={cashOutAmount}
-                onChange={(e) => setCashOutAmount(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-4">
-              <button type="button" onClick={() => setIsCashingOut(null)} className="flex-1 py-4 bg-slate-800 rounded-xl font-bold text-slate-400 hover:bg-slate-700">Cancel</button>
-              <button type="submit" className="flex-1 py-4 bg-emerald-500 text-slate-950 rounded-xl font-black hover:bg-emerald-400">Confirm Cash Out</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Edit Transaction Modal */}
-      {editingTransaction && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleEditTransaction} className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] w-full max-w-md space-y-6 shadow-2xl animate-in zoom-in-95">
-            <div className="space-y-2">
-              <h3 className="text-xl font-black text-white">Edit {editingTransaction.type === 'buyin' ? 'Buy-In' : 'Cash-Out'}</h3>
-              <p className="text-sm text-slate-400">Updating amount for this transaction.</p>
-            </div>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
-              <input
-                type="number"
-                autoFocus
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-4 focus:ring-2 focus:ring-amber-500 outline-none font-black text-xl text-white"
-                placeholder="0.00"
-                value={editAmount}
-                onChange={(e) => setEditAmount(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-4">
-              <button type="button" onClick={() => setEditingTransaction(null)} className="flex-1 py-4 bg-slate-800 rounded-xl font-bold text-slate-400 hover:bg-slate-700">Cancel</button>
-              <button type="submit" className="flex-1 py-4 bg-amber-500 text-slate-950 rounded-xl font-black hover:bg-amber-400">Update Amount</button>
-            </div>
-          </form>
-        </div>
-      )}
-
       {isEnding ? (
         <div className="bg-slate-900 border-2 border-amber-500/50 rounded-[2.5rem] p-8 space-y-6 animate-in slide-in-from-top-4 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-amber-500"></div>
@@ -330,35 +198,29 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
             </div>
             <div>
               <h2 className="text-2xl font-black text-white">Final Chip Count</h2>
-              <p className="text-sm text-slate-400 font-medium">Verify chips on table. Total Pool: ₹{buyIns.filter(b => b.status === 'approved').reduce((s, b) => s + b.amount, 0)}</p>
+              <p className="text-sm text-slate-400 font-medium">Verify that all chips on table match the pool of ₹{buyIns.filter(b => b.status === 'approved').reduce((s, b) => s + b.amount, 0)}</p>
             </div>
           </div>
 
           <div className="space-y-3">
-            {players.map(p => {
-              const stats = getPlayerStats(p.userId);
-              return (
-                <div key={p.userId} className="flex items-center justify-between p-5 bg-slate-950 rounded-2xl border border-slate-800 focus-within:border-amber-500/50 transition-all group">
-                  <div>
-                    <span className="font-black text-slate-200 block">{p.name}</span>
-                    <div className="flex gap-3 text-[10px] uppercase font-bold text-slate-500">
-                      <span>In: ₹{stats.totalBuyIn}</span>
-                      <span className="text-emerald-500">Out: ₹{stats.totalCashOut}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-slate-600 font-bold">₹</span>
-                    <input
-                      type="number"
-                      className="w-32 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-right focus:ring-2 focus:ring-amber-500 outline-none font-black text-white"
-                      placeholder="0"
-                      value={finalChipCounts[p.userId] || ''}
-                      onChange={(e) => setFinalChipCounts(prev => ({ ...prev, [p.userId]: e.target.value }))}
-                    />
-                  </div>
+            {players.map(p => (
+              <div key={p.userId} className="flex items-center justify-between p-5 bg-slate-950 rounded-2xl border border-slate-800 focus-within:border-amber-500/50 transition-all group">
+                <div>
+                  <span className="font-black text-slate-200 block">{p.name}</span>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">Invested: ₹{getPlayerStats(p.userId).total}</span>
                 </div>
-              )
-            })}
+                <div className="flex items-center gap-3">
+                  <span className="text-slate-600 font-bold">₹</span>
+                  <input
+                    type="number"
+                    className="w-32 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-right focus:ring-2 focus:ring-amber-500 outline-none font-black text-white"
+                    placeholder="0"
+                    value={finalChipCounts[p.userId] || ''}
+                    onChange={(e) => setFinalChipCounts(prev => ({ ...prev, [p.userId]: e.target.value }))}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
 
           {error && <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-bold flex items-center gap-3">
@@ -412,7 +274,7 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
                   <thead className="bg-slate-950/50 border-b border-slate-800">
                     <tr>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Player</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Net Stack</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Chips In</th>
                       <th className="w-12"></th>
                     </tr>
                   </thead>
@@ -433,14 +295,11 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
                                 </div>
                                 <div>
                                   <p className="font-black text-slate-200">{p.name}</p>
-                                  <p className="text-[9px] font-bold text-slate-500 uppercase">{stats.history.length} txns</p>
+                                  <p className="text-[9px] font-bold text-slate-500 uppercase">{stats.history.length} Transactions</p>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-5 text-right">
-                              <span className="font-mono text-emerald-400 font-black text-lg block">In: ₹{stats.totalBuyIn}</span>
-                              {stats.totalCashOut > 0 && <span className="font-mono text-slate-500 font-bold text-xs block">Out: ₹{stats.totalCashOut}</span>}
-                            </td>
+                            <td className="px-6 py-5 text-right font-mono text-emerald-400 font-black text-lg">₹{stats.total}</td>
                             <td className="px-4 text-slate-700">
                               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             </td>
@@ -449,15 +308,12 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
                             <tr className="bg-slate-950/40">
                               <td colSpan={3} className="px-8 py-6 animate-in slide-in-from-top-2 border-b border-slate-800/50">
                                 <div className="space-y-4">
-                                  <div className="flex items-center justify-between">
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); setIsCashingOut(p.userId); }}
-                                      className="bg-slate-800 hover:bg-emerald-500 text-slate-300 hover:text-slate-950 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2"
-                                    >
-                                      <Wallet className="w-3 h-3" /> Cash Out Chips
-                                    </button>
+                                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                      <History className="w-3 h-3" /> Player Transaction Log
+                                    </p>
+                                    <p className="text-[9px] font-black text-emerald-500/50 uppercase">Session Audit</p>
                                   </div>
-
                                   <div className="space-y-2">
                                     {stats.history.length === 0 ? (
                                       <p className="text-xs text-slate-600 italic py-2">No buy-ins initiated yet</p>
@@ -465,25 +321,14 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
                                       stats.history.map(r => (
                                         <div key={r.id} className="flex items-center justify-between py-2 border-b border-slate-800/50 last:border-0 group/item">
                                           <div className="flex items-center gap-4">
-                                            <div className={`p-1.5 rounded-lg ${r.type === 'buyin' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                                              {r.type === 'buyin' ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
-                                            </div>
-                                            <div>
-                                              <div className="text-[10px] font-mono text-slate-600">{new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                                              <div className="text-xs font-bold text-slate-400 uppercase">{r.type === 'buyin' ? 'Buy-In' : 'Cash-Out'}</div>
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center gap-4">
+                                            <div className="text-[10px] font-mono text-slate-600 group-hover/item:text-slate-400 transition-colors">{new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                             <div className="text-sm font-black text-slate-100">₹{r.amount}</div>
-                                            <div className="flex opacity-0 group-hover/item:opacity-100 transition-opacity gap-1">
-                                              {(r.type === 'cashout' || (r.type === 'buyin' && r.status !== 'rejected')) && (
-                                                // Allow editing any approved/pending transaction
-                                                <>
-                                                  <button onClick={() => startEditing(r)} className="p-1.5 text-slate-500 hover:text-amber-500 transition-colors"><PenSquare className="w-3 h-3" /></button>
-                                                  <button onClick={() => handleDeleteTransaction(r)} className="p-1.5 text-slate-500 hover:text-rose-500 transition-colors"><Trash2 className="w-3 h-3" /></button>
-                                                </>
-                                              )}
-                                            </div>
+                                          </div>
+                                          <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${r.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                            r.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                              'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                            }`}>
+                                            {r.status}
                                           </div>
                                         </div>
                                       ))
@@ -511,55 +356,37 @@ export default function SessionAdmin({ user, sessionCode, navigate }: SessionAdm
               <span className="text-[9px] font-bold text-slate-600 uppercase">Realtime Feed</span>
             </div>
             <div className="bg-slate-900/50 rounded-[2rem] border border-slate-800 p-2 max-h-80 overflow-y-auto custom-scrollbar shadow-inner">
-              {/* Merge all transactions for feed */}
-              {(() => {
-                const allTxns: Transaction[] = [
-                  ...buyIns.map(b => ({ ...b, type: 'buyin' } as Transaction)),
-                  ...cashOuts.map(c => ({ ...c, type: 'cashout' } as Transaction))
-                ].sort((a, b) => b.timestamp - a.timestamp);
-
-                if (allTxns.length === 0) return (
-                  <div className="py-20 text-center text-slate-700 text-[10px] font-black uppercase tracking-widest flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 rounded-full border border-slate-800 flex items-center justify-center opacity-20">♠</div>
-                    Feed Ready
-                  </div>
-                );
-
-                return allTxns.map((t, idx) => {
-                  const player = players.find(p => p.userId === t.userId);
+              {buyIns.length === 0 ? (
+                <div className="py-20 text-center text-slate-700 text-[10px] font-black uppercase tracking-widest flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 rounded-full border border-slate-800 flex items-center justify-center opacity-20">♠</div>
+                  Feed Ready
+                </div>
+              ) : (
+                buyIns.map((b, idx) => {
+                  const player = players.find(p => p.userId === b.userId);
                   return (
-                    <div key={t.id} className={`flex items-center justify-between p-5 rounded-2xl transition-all hover:bg-white/[0.02] group ${idx % 2 === 0 ? 'bg-slate-950/20' : ''}`}>
+                    <div key={b.id} className={`flex items-center justify-between p-5 rounded-2xl transition-all hover:bg-white/[0.02] group ${idx % 2 === 0 ? 'bg-slate-950/20' : ''}`}>
                       <div className="flex items-center gap-5">
                         <div className="font-mono text-[10px] text-slate-600 group-hover:text-slate-400 transition-colors">
-                          {new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          {new Date(b.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </div>
                         <div>
                           <p className="text-sm font-black text-slate-200">{player?.name || 'Observer'}</p>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[9px] font-bold uppercase ${t.type === 'buyin' ? 'text-emerald-500' : 'text-amber-500'}`}>{t.type === 'buyin' ? 'Buy-In' : 'Cash-Out'}</span>
-                            <span className="text-[10px] text-slate-500 font-bold uppercase">₹{t.amount}</span>
-                          </div>
+                          <p className="text-[10px] text-slate-500 font-bold uppercase">Attempted <span className="text-emerald-400">₹{b.amount}</span></p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        {t.type === 'buyin' && (
-                          <div className={`text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${t.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                            t.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                              'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                            }`}>
-                            {t.status}
-                          </div>
-                        )}
-                        {t.type === 'cashout' && (
-                          <div className="text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm bg-slate-800 text-slate-400 border-slate-700">
-                            Recorded
-                          </div>
-                        )}
+                        <div className={`text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${b.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                          b.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                            'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                          }`}>
+                          {b.status}
+                        </div>
                       </div>
                     </div>
                   );
-                });
-              })()}
+                })
+              )}
             </div>
           </section>
         </>

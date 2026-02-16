@@ -39,14 +39,6 @@ export interface BuyIn {
   timestamp: number;
 }
 
-export interface CashOut {
-  id: string;
-  sessionId: string;
-  userId: string;
-  amount: number;
-  timestamp: number;
-}
-
 export interface Settlement {
   from: string; // Name
   to: string; // Name
