@@ -1,6 +1,6 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import pool from '../db.js';
+import pool from '../../lib/db.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'GET') {
@@ -62,11 +62,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const statsRes = await pool.query(statsQuery, [userId]);
         const stats = statsRes.rows[0];
 
+        const historyQuery = `
+            SELECT
+                s.id as session_id,
+                s.name as session_name,
+                s.created_at as session_date,
+                s.status as session_status,
+                COALESCE(sp.final_winnings, 0) as final_winnings,
+                COALESCE(b.buyin_amount, 0) as buyin_amount
+            FROM session_players sp
+            JOIN sessions s ON sp.session_id = s.id
+            LEFT JOIN (
+                SELECT session_id, user_id, SUM(amount) as buyin_amount
+                FROM buy_ins
+                WHERE status = 'approved'
+                GROUP BY session_id, user_id
+            ) b ON sp.session_id = b.session_id AND sp.user_id = b.user_id
+            WHERE sp.user_id = $1 AND s.status = 'closed'
+            ORDER BY s.created_at ASC
+        `;
+
+        const historyRes = await pool.query(historyQuery, [userId]);
+        const history = historyRes.rows.map((r: any) => ({
+            sessionId: r.session_id,
+            sessionName: r.session_name,
+            date: new Date(r.session_date).getTime(),
+            pl: parseFloat(r.final_winnings) - parseFloat(r.buyin_amount)
+        }));
+
         return res.status(200).json({
             weeklyPL: parseFloat(stats.weekly_pl),
             monthlyPL: parseFloat(stats.monthly_pl),
             yearlyPL: parseFloat(stats.yearly_pl),
-            totalPL: parseFloat(stats.total_pl)
+            totalPL: parseFloat(stats.total_pl),
+            history
         });
 
     } catch (error: any) {

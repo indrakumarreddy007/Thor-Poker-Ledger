@@ -199,7 +199,14 @@ export const api = {
     // A quick stats endpoint is better.
     getUserStats: async (userId: string): Promise<PlayerStats> => {
         const res = await fetch(`${API_BASE}/stats/${userId}`);
-        if (!res.ok) return { weeklyPL: 0, monthlyPL: 0, yearlyPL: 0, totalPL: 0 };
-        return await res.json();
+        if (!res.ok) return { weeklyPL: 0, monthlyPL: 0, yearlyPL: 0, totalPL: 0, history: [] };
+        const data = await res.json();
+        return {
+            weeklyPL: data.weeklyPL ?? 0,
+            monthlyPL: data.monthlyPL ?? 0,
+            yearlyPL: data.yearlyPL ?? 0,
+            totalPL: data.totalPL ?? 0,
+            history: Array.isArray(data.history) ? data.history : []
+        };
     }
 };

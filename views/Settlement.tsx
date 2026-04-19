@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { User, Settlement as SettlementType } from '../types';
 import { api } from '../services/api';
+import { computePlayerResults, computeSettlements } from '../lib/settlement';
 import { ArrowRight, Trophy, Coins, CheckCircle2 } from 'lucide-react';
 
 interface SettlementProps {
@@ -25,58 +26,15 @@ export default function Settlement({ user, sessionId, navigate }: SettlementProp
     fetchData();
   }, [sessionId]);
 
-  const results = useMemo(() => {
-    const { players, buyIns } = data;
+  const results = useMemo(
+    () => computePlayerResults(data.players, data.buyIns),
+    [data]
+  );
 
-    return players.map(p => {
-      const playerBuyIn = buyIns.filter(b => b.userId === p.userId).reduce((sum, b) => sum + b.amount, 0);
-      const winnings = p.finalWinnings || 0;
-      const net = winnings - playerBuyIn;
-      return {
-        userId: p.userId,
-        name: p.name,
-        buyIn: playerBuyIn,
-        winnings,
-        net
-      };
-    }).sort((a, b) => b.net - a.net);
-  }, [data]);
-
-  const settlements = useMemo((): SettlementType[] => {
-    const givers = results.filter(r => r.net < 0).map(r => ({ ...r, net: Math.abs(r.net) }));
-    const receivers = results.filter(r => r.net > 0).map(r => ({ ...r }));
-
-    const transactions: SettlementType[] = [];
-
-    let gIdx = 0;
-    let rIdx = 0;
-
-    // Safety copy to avoid mutating memoized state
-    const currentGivers = givers.map(g => ({ ...g }));
-    const currentReceivers = receivers.map(r => ({ ...r }));
-
-    while (gIdx < currentGivers.length && rIdx < currentReceivers.length) {
-      const giver = currentGivers[gIdx];
-      const receiver = currentReceivers[rIdx];
-
-      const payment = Math.min(giver.net, receiver.net);
-      if (payment > 0) {
-        transactions.push({
-          from: giver.name,
-          to: receiver.name,
-          amount: Math.round(payment * 100) / 100
-        });
-      }
-
-      giver.net -= payment;
-      receiver.net -= payment;
-
-      if (giver.net < 0.01) gIdx++;
-      if (receiver.net < 0.01) rIdx++;
-    }
-
-    return transactions;
-  }, [results]);
+  const settlements = useMemo<SettlementType[]>(
+    () => computeSettlements(results),
+    [results]
+  );
 
   if (!data.session) return (
     <div className="text-center py-20 text-slate-500">

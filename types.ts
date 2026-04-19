@@ -45,9 +45,17 @@ export interface Settlement {
   amount: number;
 }
 
+export interface SessionPLPoint {
+  sessionId: string;
+  sessionName: string;
+  date: number;
+  pl: number;
+}
+
 export interface PlayerStats {
   weeklyPL: number;
   monthlyPL: number;
   yearlyPL: number;
   totalPL: number;
+  history?: SessionPLPoint[];
 }
