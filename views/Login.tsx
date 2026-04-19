@@ -55,30 +55,38 @@ export default function Login({ onLogin }: LoginProps) {
           <p className="text-slate-500 text-sm font-semibold tracking-wide uppercase">Private High Roller Network</p>
         </div>
 
-        <div className="glass p-1.5 rounded-2xl flex gap-1 mb-2">
+        <div className="glass p-1.5 rounded-2xl flex gap-1 mb-2" role="tablist" aria-label="Authentication mode">
           <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'signin'}
             onClick={() => { setMode('signin'); setError(''); }}
-            className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${mode === 'signin' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${mode === 'signin' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Sign In
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'signup'}
             onClick={() => { setMode('signup'); setError(''); }}
-            className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${mode === 'signup' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${mode === 'signup' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Register
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" aria-describedby={error ? 'login-error' : undefined}>
           <div className="space-y-4">
             {mode === 'signup' && (
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+                <label htmlFor="login-name" className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
                 <input
+                  id="login-name"
                   type="text"
                   required
-                  className="appearance-none block w-full px-4 py-4 border border-slate-800 placeholder:text-slate-600 text-slate-50 rounded-xl bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all text-sm font-bold"
+                  autoComplete="name"
+                  className="appearance-none block w-full px-4 py-4 border border-slate-800 placeholder:text-slate-600 text-slate-50 rounded-xl bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 transition-all text-sm font-bold"
                   placeholder="John Doe"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -87,11 +95,13 @@ export default function Login({ onLogin }: LoginProps) {
             )}
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Username</label>
+              <label htmlFor="login-username" className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Username</label>
               <input
+                id="login-username"
                 type="text"
                 required
-                className="appearance-none block w-full px-4 py-4 border border-slate-800 placeholder:text-slate-600 text-slate-50 rounded-xl bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all text-sm font-bold"
+                autoComplete="username"
+                className="appearance-none block w-full px-4 py-4 border border-slate-800 placeholder:text-slate-600 text-slate-50 rounded-xl bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 transition-all text-sm font-bold"
                 placeholder="poker_pro_123"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -99,11 +109,13 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Security Key</label>
+              <label htmlFor="login-password" className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Security Key</label>
               <input
+                id="login-password"
                 type="password"
                 required
-                className="appearance-none block w-full px-4 py-4 border border-slate-800 placeholder:text-slate-600 text-slate-50 rounded-xl bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all text-sm font-bold"
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                className="appearance-none block w-full px-4 py-4 border border-slate-800 placeholder:text-slate-600 text-slate-50 rounded-xl bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 transition-all text-sm font-bold"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -111,11 +123,11 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
           </div>
 
-          {error && <p className="text-rose-500 text-[10px] text-center font-bold uppercase tracking-wider">{error}</p>}
+          {error && <p id="login-error" role="alert" className="text-rose-500 text-[10px] text-center font-bold uppercase tracking-wider">{error}</p>}
 
           <button
             type="submit"
-            className="group relative w-full flex justify-center items-center gap-2 py-5 px-4 border border-transparent text-sm font-black rounded-xl text-slate-950 bg-emerald-500 hover:bg-emerald-400 focus:outline-none transition-all active:scale-95 shadow-xl shadow-emerald-500/20"
+            className="group relative w-full flex justify-center items-center gap-2 py-5 px-4 border border-transparent text-sm font-black rounded-xl text-slate-950 bg-emerald-500 hover:bg-emerald-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 transition-all active:scale-95 shadow-xl shadow-emerald-500/20"
           >
             {mode === 'signin' ? <LogIn className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
             {mode === 'signin' ? 'Access Ledger' : 'Create Profile'}

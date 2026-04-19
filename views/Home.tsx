@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, PlayerStats, Session } from '../types';
 import { api } from '../services/api';
-import { PlusCircle, Key, History, TrendingUp, LayoutDashboard, ChevronRight, Activity, Zap } from 'lucide-react';
+import { PlusCircle, Key, History, TrendingUp, LayoutDashboard, ChevronRight, Activity, Zap, CloudOff } from 'lucide-react';
+import EmptyState from '../components/EmptyState';
 
 interface HomeProps {
   user: User;
@@ -114,7 +115,7 @@ export default function Home({ user, navigate, initialCode }: HomeProps) {
       </section>
 
       {/* Control Tabs */}
-      <div className="glass p-1.5 rounded-2xl flex gap-1">
+      <div className="glass p-1.5 rounded-2xl flex gap-1" role="tablist" aria-label="Lobby navigation">
         {[
           { id: 'dash', label: 'Lobby', icon: LayoutDashboard, color: 'text-emerald-400' },
           { id: 'create', label: 'Host', icon: PlusCircle, color: 'text-sky-400' },
@@ -122,8 +123,11 @@ export default function Home({ user, navigate, initialCode }: HomeProps) {
         ].map(tab => (
           <button
             key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex-1 py-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2.5 transition-all duration-300 ${activeTab === tab.id ? 'bg-white/10 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`flex-1 py-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${activeTab === tab.id ? 'bg-white/10 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}
           >
             <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? tab.color : 'opacity-40'}`} />
             <span className={activeTab === tab.id ? 'text-white' : ''}>{tab.label}</span>
@@ -140,42 +144,47 @@ export default function Home({ user, navigate, initialCode }: HomeProps) {
               </h2>
             </div>
             {history.length === 0 ? (
-              <div className="glass rounded-3xl py-16 text-center">
-                <p className="text-slate-500 font-bold mb-4">No active seats found.</p>
-                <button onClick={() => setActiveTab('create')} className="px-6 py-2 bg-emerald-500/10 text-emerald-400 rounded-full text-xs font-black border border-emerald-500/20 hover:bg-emerald-500 hover:text-slate-950 transition-all">Start a Game</button>
-              </div>
+              <EmptyState
+                icon={CloudOff}
+                title="No seats at this table yet"
+                subtitle="Host a new room or enter a 6-digit code to join a friend's table."
+                action={{ label: 'Start a Game', onClick: () => setActiveTab('create'), tone: 'emerald' }}
+              />
             ) : (
-              <div className="space-y-3">
+              <ul className="space-y-3">
                 {history.map(s => (
-                  <div
-                    key={s.id}
-                    onClick={() => {
-                      if (s.status === 'closed') navigate(`settlement/${s.id}`);
-                      else if (s.createdBy === user.id) navigate(`admin/${s.sessionCode}`);
-                      else navigate(`player/${s.sessionCode}`);
-                    }}
-                    className="glass group p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all hover:bg-white/[0.03] active:scale-[0.98] border border-white/[0.02] hover:border-emerald-500/30"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black ${s.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-slate-800 text-slate-500'}`}>
-                        {s.name.charAt(0)}
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      aria-label={`Open ${s.name}, ${s.status}, code ${s.sessionCode}`}
+                      onClick={() => {
+                        if (s.status === 'closed') navigate(`settlement/${s.id}`);
+                        else if (s.createdBy === user.id) navigate(`admin/${s.sessionCode}`);
+                        else navigate(`player/${s.sessionCode}`);
+                      }}
+                      className="glass group w-full text-left p-4 rounded-2xl flex items-center justify-between transition-all hover:bg-white/[0.03] active:scale-[0.98] border border-white/[0.02] hover:border-emerald-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black ${s.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-slate-800 text-slate-500'}`}>
+                          {s.name.charAt(0)}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">{s.name}</h3>
+                          <p className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                            {s.sessionCode} <span className="opacity-30">•</span> {new Date(s.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">{s.name}</h3>
-                        <p className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
-                          {s.sessionCode} <span className="opacity-30">•</span> {new Date(s.createdAt).toLocaleDateString()}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <div className={`px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-tighter ${s.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>
+                          {s.status}
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-700 group-hover:text-emerald-400" />
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className={`px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-tighter ${s.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>
-                        {s.status}
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-700 group-hover:text-emerald-400" />
-                    </div>
-                  </div>
+                    </button>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
         )}
@@ -183,34 +192,36 @@ export default function Home({ user, navigate, initialCode }: HomeProps) {
         {activeTab === 'create' && (
           <div className="glass p-8 rounded-3xl animate-slide">
             <h2 className="text-xl font-black mb-6 text-emerald-400">Initialize Table</h2>
-            <form onSubmit={handleCreate} className="space-y-6">
+            <form onSubmit={handleCreate} className="space-y-6" aria-describedby={createError ? 'create-error' : undefined}>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Room Name</label>
+                <label htmlFor="create-room-name" className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1 block">Room Name</label>
                 <input
+                  id="create-room-name"
                   type="text"
-                  className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all placeholder:text-slate-700 font-bold"
+                  className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 transition-all placeholder:text-slate-700 font-bold"
                   placeholder="The VIP Lounge"
                   value={sessionName}
                   onChange={(e) => setSessionName(e.target.value)}
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Table Blinds</label>
+                <label htmlFor="create-blinds" className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1 block">Table Blinds</label>
                 <input
+                  id="create-blinds"
                   type="text"
-                  className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all font-mono"
+                  className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 transition-all font-mono"
                   placeholder="10 / 20"
                   value={blindValue}
                   onChange={(e) => setBlindValue(e.target.value)}
                 />
               </div>
-              {createError && <p className="text-rose-400 text-[10px] font-black uppercase tracking-widest animate-bounce mb-4">{createError}</p>}
+              {createError && <p id="create-error" role="alert" className="text-rose-400 text-[10px] font-black uppercase tracking-widest animate-bounce mb-4">{createError}</p>}
               <button
                 type="submit"
                 disabled={!sessionName}
-                className="w-full py-5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-30 text-slate-950 font-black rounded-2xl transition-all shadow-xl shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2"
+                className="w-full py-5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-30 text-slate-950 font-black rounded-2xl transition-all shadow-xl shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
               >
-                <Zap className="w-4 h-4 fill-current" /> Open Table
+                <Zap className="w-4 h-4 fill-current" aria-hidden="true" /> Open Table
               </button>
             </form>
           </div>
@@ -220,11 +231,16 @@ export default function Home({ user, navigate, initialCode }: HomeProps) {
           <div className="glass p-8 rounded-3xl animate-slide text-center">
             <h2 className="text-xl font-black mb-2 text-amber-400">Find Table</h2>
             <p className="text-slate-500 text-xs mb-8 font-medium italic">Enter the unique 6-digit access code provided by host.</p>
-            <form onSubmit={handleJoin} className="space-y-6">
+            <form onSubmit={handleJoin} className="space-y-6" aria-describedby={joinError ? 'join-error' : undefined}>
               <div className="relative group">
+                <label htmlFor="join-code" className="sr-only">Table access code</label>
                 <input
+                  id="join-code"
                   type="text"
-                  className="w-full bg-black/40 border-2 border-white/5 rounded-3xl px-6 py-8 focus:border-amber-500/50 outline-none transition-all uppercase font-mono tracking-[0.6em] text-4xl text-center text-amber-400 placeholder:text-slate-900"
+                  inputMode="text"
+                  autoComplete="off"
+                  aria-label="Table access code, 6 characters"
+                  className="w-full bg-black/40 border-2 border-white/5 rounded-3xl px-3 sm:px-6 py-7 sm:py-8 focus:border-amber-500/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 transition-all uppercase font-mono tracking-[0.3em] sm:tracking-[0.6em] text-3xl sm:text-4xl text-center text-amber-400 placeholder:text-slate-900"
                   placeholder="••••••"
                   maxLength={6}
                   value={joinCode}
@@ -235,11 +251,11 @@ export default function Home({ user, navigate, initialCode }: HomeProps) {
                 />
                 <div className="absolute inset-0 rounded-3xl border border-amber-500/0 group-hover:border-amber-500/10 pointer-events-none transition-all"></div>
               </div>
-              {joinError && <p className="text-rose-400 text-[10px] font-black uppercase tracking-widest animate-bounce">{joinError}</p>}
+              {joinError && <p id="join-error" role="alert" className="text-rose-400 text-[10px] font-black uppercase tracking-widest animate-bounce">{joinError}</p>}
               <button
                 type="submit"
                 disabled={joinCode.length < 4}
-                className="w-full py-5 bg-amber-500 hover:bg-amber-400 disabled:opacity-30 text-slate-950 font-black rounded-2xl transition-all shadow-xl shadow-amber-500/20 active:scale-95"
+                className="w-full py-5 bg-amber-500 hover:bg-amber-400 disabled:opacity-30 text-slate-950 font-black rounded-2xl transition-all shadow-xl shadow-amber-500/20 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
               >
                 Sit In
               </button>
